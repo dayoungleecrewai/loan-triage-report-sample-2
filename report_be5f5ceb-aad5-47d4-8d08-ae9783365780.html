@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>여신 자동분류 시스템 보고서 / Automated Loan Triage Report — 동백제조</title>
+<style>
+:root {
+  --bg: #0a0e1a;
+  --bg2: #111827;
+  --bg3: #1a2235;
+  --border: #1e2d45;
+  --accent: #3b82f6;
+  --accent2: #06b6d4;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --purple: #8b5cf6;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #64748b;
+  --card: #131c2e;
+  --card2: #0f1928;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+
+.header { background: linear-gradient(135deg, #0a0e1a 0%, #111d35 100%); border-bottom: 1px solid var(--border); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header-left h1 { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+.header-left p { color: var(--text2); font-size: 12px; margin-top: 3px; }
+.badge-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-blue { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+.badge-green { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+.badge-yellow { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.badge-purple { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+.badge-cyan { background: rgba(6,182,212,0.12); color: #22d3ee; border: 1px solid rgba(6,182,212,0.3); }
+.badge-red { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+.header-right { text-align: right; }
+.run-id { font-size: 10px; color: var(--text3); font-family: monospace; }
+.decision-chip { display: inline-block; margin-top: 6px; padding: 6px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; }
+
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--bg2); padding: 0 32px; overflow-x: auto; }
+.tab { padding: 12px 20px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text2); border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.main { display: flex; height: calc(100vh - 115px); overflow: hidden; }
+.content { flex: 1; overflow-y: auto; padding: 24px 32px; }
+.sidebar { width: 260px; border-left: 1px solid var(--border); overflow-y: auto; padding: 20px; background: var(--bg2); flex-shrink: 0; }
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+.cards-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; position: relative; overflow: hidden; }
+.card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.card.blue::before { background: var(--accent); }
+.card.green::before { background: var(--green); }
+.card.yellow::before { background: var(--yellow); }
+.card.purple::before { background: var(--purple); }
+.card.cyan::before { background: var(--accent2); }
+.card-icon { font-size: 20px; margin-bottom: 8px; }
+.card-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+.card-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+.card-sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+.flow-container { position: relative; }
+.flow-step { display: flex; gap: 16px; margin-bottom: 6px; align-items: stretch; }
+.flow-line-col { display: flex; flex-direction: column; align-items: center; width: 32px; flex-shrink: 0; }
+.flow-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; z-index: 1; }
+.flow-connector { flex: 1; width: 2px; background: var(--border); margin: 2px 0; }
+.flow-body { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+.flow-body:hover { border-color: var(--accent); }
+.flow-body.expanded { border-color: var(--accent); }
+.flow-header { display: flex; align-items: center; gap: 10px; }
+.flow-title { font-weight: 600; font-size: 14px; }
+.flow-subtitle { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.flow-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; margin-left: auto; }
+.flow-detail { display: none; margin-top: 14px; border-top: 1px solid var(--border); padding-top: 14px; }
+.flow-body.expanded .flow-detail { display: block; }
+
+.pillar-tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600; background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
+.pillar-tag.policy { background: rgba(59,130,246,0.15); color: #60a5fa; border-color: rgba(59,130,246,0.3); }
+.pillar-tag.auth { background: rgba(245,158,11,0.12); color: #fbbf24; border-color: rgba(245,158,11,0.3); }
+.pillar-tag.verify { background: rgba(16,185,129,0.12); color: #34d399; border-color: rgba(16,185,129,0.3); }
+.pillar-tag.log { background: rgba(6,182,212,0.12); color: #22d3ee; border-color: rgba(6,182,212,0.3); }
+.pillar-tag.improve { background: rgba(139,92,246,0.15); color: #a78bfa; border-color: rgba(139,92,246,0.3); }
+
+.agents-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.agent-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.agent-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.agent-avatar { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.agent-name { font-weight: 600; font-size: 13px; }
+.agent-role { font-size: 11px; color: var(--text2); }
+.agent-body { padding: 14px 16px; }
+.kv { display: flex; margin-bottom: 8px; gap: 8px; }
+.kv-key { width: 120px; font-size: 11px; color: var(--text3); flex-shrink: 0; }
+.kv-val { font-size: 12px; color: var(--text); }
+.tool-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; padding: 2px 8px; border-radius: 4px; margin: 2px; background: rgba(59,130,246,0.1); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+.output-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-top: 10px; font-size: 11px; color: var(--text2); line-height: 1.6; }
+.output-box code { color: var(--accent2); font-family: monospace; }
+
+.guardrail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.guardrail-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.guardrail-head { padding: 12px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.layer-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 5px; }
+.guardrail-body { padding: 14px 16px; }
+.status-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.pass { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.block { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.status-dot.warn { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+
+.risk-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+.risk-factor { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.rf-label { font-size: 11px; color: var(--text3); margin-bottom: 6px; }
+.rf-value { font-size: 20px; font-weight: 700; }
+.rf-sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.progress-bar { height: 6px; background: var(--border); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+.weight-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.weight-row:last-child { border-bottom: none; }
+.weight-label { font-size: 12px; }
+.weight-bar-wrap { flex: 1; margin: 0 12px; }
+.weight-pct { font-size: 11px; color: var(--text3); width: 32px; text-align: right; }
+
+.hitl-timeline { position: relative; padding-left: 32px; }
+.hitl-timeline::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+.hitl-event { position: relative; margin-bottom: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.hitl-event::before { content: ''; position: absolute; left: -27px; top: 16px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg2); }
+.hitl-event-time { font-size: 10px; color: var(--text3); margin-bottom: 4px; font-family: monospace; }
+.hitl-event-title { font-weight: 600; font-size: 13px; }
+.hitl-event-detail { font-size: 12px; color: var(--text2); margin-top: 6px; }
+.routing-card { background: linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(239,68,68,0.05) 100%); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.routing-title { font-size: 15px; font-weight: 700; color: #fbbf24; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+.report-box { background: var(--card2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; line-height: 1.7; font-size: 13px; }
+.report-box h1, .report-box h2, .report-box h3 { color: var(--accent); font-size: 14px; margin: 16px 0 8px; }
+.report-box h1:first-child, .report-box h2:first-child, .report-box h3:first-child { margin-top: 0; }
+.report-box ul { padding-left: 16px; }
+.report-box li { margin-bottom: 4px; color: var(--text2); }
+.report-box strong { color: var(--text); }
+.report-box p { color: var(--text2); margin-bottom: 10px; }
+
+.sidebar-section { margin-bottom: 24px; }
+.sidebar-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text3); margin-bottom: 12px; }
+.pillar-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 6px; border: 1px solid transparent; transition: all 0.15s; }
+.pillar-item:hover { background: var(--bg3); border-color: var(--border); }
+.pillar-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.pillar-name { font-size: 12px; font-weight: 600; }
+.pillar-desc { font-size: 10px; color: var(--text3); margin-top: 2px; line-height: 1.4; }
+.sds-tag { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 3px; margin-top: 4px; background: rgba(139,92,246,0.1); color: #a78bfa; border: 1px solid rgba(139,92,246,0.2); }
+.meta-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+.meta-item:last-child { border-bottom: none; }
+.meta-key { color: var(--text3); }
+.meta-val { color: var(--text); font-family: monospace; text-align: right; max-width: 130px; word-break: break-all; font-size: 10px; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2d3f5a; }
+
+.score-ring-wrap { display: flex; align-items: center; gap: 20px; padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+svg.ring text { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+.section-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+hr.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <h1>🏦 여신 자동분류 시스템 보고서 / Automated Loan Triage Report</h1>
+    <p>Applicant: 동백제조 · ID: APP-2026-0002 · Run: 2026-05-11 21:02:02</p>
+    <div class="badge-row">
+      <span class="badge badge-cyan">4-Agent Pipeline · 순차 처리</span>
+      <span class="badge badge-purple">5대 거버넌스 원칙 / 5-Pillar Governance</span>
+      <span class="badge badge-green">4중 가드레일 / 4 Guardrail Layers</span>
+      <span class="badge badge-yellow">사람 검토 게이트 / HITL Gate</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="run-id">audit_run_id: be5f5ceb-aad5-47d4-8d08-ae9783365780</div>
+    <div class="run-id" style="margin-top:2px">operator: demo-operator@example.bank.kr</div>
+    <div class="decision-chip" style="background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.4)">✓ approved — 자동 승인 / Auto-approved</div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('overview')">📊 개요 / Overview</div>
+  <div class="tab" onclick="showTab('flow')">🔄 실행 흐름 / Flow Trace</div>
+  <div class="tab" onclick="showTab('agents')">🤖 에이전트 출력 / Agent Outputs</div>
+  <div class="tab" onclick="showTab('guardrails')">🛡️ 가드레일 / Guardrails</div>
+  <div class="tab" onclick="showTab('risk')">📈 위험 평가 / Risk Assessment</div>
+  <div class="tab" onclick="showTab('hitl')">👤 HITL 결정 / HITL Decision</div>
+  <div class="tab" onclick="showTab('report')">📋 결재 보고서 / Supervisor Report</div>
+  <div class="tab" onclick="showTab('analytics')">📉 분석 / Analytics</div>
+</div>
+
+<div class="main">
+<div class="content">
+
+<!-- ══════════ OVERVIEW ══════════ -->
+<div id="panel-overview" class="panel active">
+  <div class="cards-row">
+    <div class="card blue">
+      <div class="card-icon">🏢</div>
+      <div class="card-label">신청자 / Applicant</div>
+      <div class="card-value" style="font-size:16px;color:#60a5fa">동백제조</div>
+      <div class="card-sub">중소기업 · APP-2026-0002</div>
+    </div>
+    <div class="card green">
+      <div class="card-icon">💰</div>
+      <div class="card-label">신청 금액 / Loan Amount</div>
+      <div class="card-value" style="color:#34d399">1억원</div>
+      <div class="card-sub">운영자금 및 원자재 매입</div>
+    </div>
+    <div class="card yellow">
+      <div class="card-icon">⚡</div>
+      <div class="card-label">위험 점수 / Risk Score</div>
+      <div class="card-value" style="color:#10b981">0.347</div>
+      <div class="card-sub">안전 구간 / approve zone (< 0.4)</div>
+    </div>
+    <div class="card purple">
+      <div class="card-icon">🔍</div>
+      <div class="card-label">최종 결정 / Final Decision</div>
+      <div class="card-value" style="font-size:13px;color:#34d399">Approved<br><span style='font-size:10px;font-weight:400'>승인</span></div>
+      <div class="card-sub">자동 승인 / Auto-approved</div>
+    </div>
+  </div>
+
+  <div class="section-title">🏗️ 크루 구조 / Crew Architecture</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">📄</div>
+        <div style="font-size:12px;font-weight:600;color:#60a5fa">Intake Agent</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">문서 인테이크 분석가</div>
+        <div style="margin-top:8px"><span class="tool-chip">document_parse_mcp</span></div>
+        <div><span class="tool-chip">korean_doc_extractor</span></div>
+        <div style="margin-top:6px;font-size:10px;color:var(--text3)">→ ApplicantProfile</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">🔍</div>
+        <div style="font-size:12px;font-weight:600;color:#34d399">KYC Verifier</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">KYC 검증 분석가</div>
+        <div style="margin-top:8px"><span class="tool-chip" style="color:#34d399;border-color:rgba(16,185,129,0.3)">kyc_lookup</span></div>
+        <div><span class="tool-chip" style="color:#34d399;border-color:rgba(16,185,129,0.3)">sanctions_list</span></div>
+        <div style="margin-top:6px;font-size:10px;color:var(--text3)">→ KYCReport</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">📊</div>
+        <div style="font-size:12px;font-weight:600;color:#fbbf24">Risk Classifier</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">신용 위험 분석가</div>
+        <div style="margin-top:8px"><span class="tool-chip" style="color:#fbbf24;border-color:rgba(245,158,11,0.3)">credit_score</span></div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">eval-routed LLM</div>
+        <div style="margin-top:6px;font-size:10px;color:var(--text3)">→ RiskDecision</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid rgba(139,92,246,0.4);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">⚖️</div>
+        <div style="font-size:12px;font-weight:600;color:#a78bfa">Supervisor</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">대출 분류 슈퍼바이저</div>
+        <div style="margin-top:8px;font-size:10px;color:var(--text3)">tools: [] (read-only)</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">gpt-4o pinned</div>
+        <div style="margin-top:6px;font-size:10px;color:var(--text3)">→ MD Report</div>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:12px;color:var(--text3)">
+      Process: <strong style="color:var(--text)">Sequential</strong> &nbsp;·&nbsp;
+      Guardrail: <strong style="color:var(--text)">policy_guardrail on every task</strong> &nbsp;·&nbsp;
+      Router: <strong style="color:var(--text)">hitl_gate</strong> &nbsp;·&nbsp;
+      Output schema: <strong style="color:var(--text)">Pydantic (ApplicantProfile · KYCReport · RiskDecision)</strong>
+    </div>
+  </div>
+
+  <div class="section-title">🏛️ 5대 거버넌스 원칙 / 5-Pillar Governance Map</div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">
+    <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:12px;text-align:center">
+      <div style="font-size:20px;margin-bottom:6px">📋</div>
+      <div style="font-size:11px;font-weight:700;color:#60a5fa">정책 / Policy</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">정책 가드레일 / Policy Guardrail<br>L4 출력 스키마 / Output Schema<br>통화·PII / Currency · PII</div>
+    </div>
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px;text-align:center">
+      <div style="font-size:20px;margin-bottom:6px">🔑</div>
+      <div style="font-size:11px;font-weight:700;color:#fbbf24">권한 / Auth</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">JWT/SSO 인증 / Auth<br>RBAC 도구 래핑 / Tool Wrap<br>운영자 감사 로그 / Audit Log</div>
+    </div>
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:12px;text-align:center">
+      <div style="font-size:20px;margin-bottom:6px">✅</div>
+      <div style="font-size:11px;font-weight:700;color:#34d399">검증 / Verify</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">사람 검토 게이트 / HITL Gate<br>환각 방지 / Hallucination Guard<br>제재 명단 / Sanctions Check</div>
+    </div>
+    <div style="background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.3);border-radius:8px;padding:12px;text-align:center">
+      <div style="font-size:20px;margin-bottom:6px">📝</div>
+      <div style="font-size:11px;font-weight:700;color:#22d3ee">로깅 / Log</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">OTel 추적 / Tracing<br>감사 로그 / Audit Log<br>JSON 직렬화 / Serialization</div>
+    </div>
+    <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:12px;text-align:center">
+      <div style="font-size:20px;margin-bottom:6px">🚀</div>
+      <div style="font-size:11px;font-weight:700;color:#a78bfa">개선 / Improve</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">평가 기반 라우팅 / Eval Routing<br>LLM 선택 / LLM Selection<br>모델 보정 / Model Correction</div>
+    </div>
+  </div>
+
+  <div class="section-title">📦 입력 문서 / Document Input</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;gap:24px;flex-wrap:wrap">
+    <div><span style="color:var(--text3);font-size:11px">파일 / File</span><br><span style="font-size:13px">app_002_sme.hwp</span></div>
+    <div><span style="color:var(--text3);font-size:11px">포맷 / Format</span><br><span style="font-size:13px">HWP · 한국 워드프로세서</span></div>
+    <div><span style="color:var(--text3);font-size:11px">파서 경로 / Parser Path</span><br><span style="font-size:13px">OLE → fixture fallback</span></div>
+    <div><span style="color:var(--text3);font-size:11px">추출 신뢰도 / Extraction Confidence</span><br><span style="font-size:13px;color:#34d399">0.87</span></div>
+    <div><span style="color:var(--text3);font-size:11px">신용 등급 / Credit Grade</span><br><span style="font-size:13px;color:#fbbf24">BB</span></div>
+    <div><span style="color:var(--text3);font-size:11px">사용 모델 / Models Used</span><br><span style="font-size:13px">Intake: gpt-4o · KYC: claude-sonnet-4-5 · Risk: openai/gpt-4o</span></div>
+  </div>
+</div>
+
+<!-- ══════════ FLOW TRACE ══════════ -->
+<div id="panel-flow" class="panel">
+  <div class="section-title">🔄 실행 흐름 추적 / Execution Flow Trace</div>
+  <div class="flow-container">
+
+    <div class="flow-step">
+      <div class="flow-line-col">
+        <div class="flow-dot" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.4)">1</div>
+        <div class="flow-connector"></div>
+      </div>
+      <div class="flow-body" onclick="toggleFlow(this)">
+        <div class="flow-header">
+          <div>
+            <div class="flow-title">@start · begin</div>
+            <div class="flow-subtitle">운영자 식별 · OTel 초기화 · JWT/SSO 스텁 · 샘플 선택</div>
+          </div>
+          <span class="pillar-tag auth">권한</span>
+          <span class="pillar-tag log" style="margin-left:4px">로깅</span>
+        </div>
+        <div class="flow-detail">
+          <div class="kv"><span class="kv-key">Operator</span><span class="kv-val">demo-operator@example.bank.kr</span></div>
+          <div class="kv"><span class="kv-key">Persona</span><span class="kv-val">loan_officer (여신 담당)</span></div>
+          <div class="kv"><span class="kv-key">Sample</span><span class="kv-val">#2 — 동백제조</span></div>
+          <div class="kv"><span class="kv-key">JWT issued</span><span class="kv-val">SSO stub · iss=demo · can_run_flow=true</span></div>
+          <div class="kv"><span class="kv-key">RBAC Whitelist</span><span class="kv-val">intake:[parse,extract] kyc:[kyc,sanctions] risk:[credit]</span></div>
+          <div class="kv"><span class="kv-key">OTel</span><span class="kv-val">init → service.namespace=loan-triage</span></div>
+          <div class="output-box">✅ [감사로그] 시작 run_id=be5f5ceb-aad5... 운영자=demo-operator@example.bank.kr 샘플=#2</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line-col">
+        <div class="flow-dot" style="background:rgba(139,92,246,0.2);color:#a78bfa;border:1px solid rgba(139,92,246,0.4)">2</div>
+        <div class="flow-connector"></div>
+      </div>
+      <div class="flow-body" onclick="toggleFlow(this)">
+        <div class="flow-header">
+          <div>
+            <div class="flow-title">@listen(begin) · select_risk_llm</div>
+            <div class="flow-subtitle">평가 기반 LLM 라우팅 — routing_decision.json 캐시 활용</div>
+          </div>
+          <span class="pillar-tag improve">개선</span>
+        </div>
+        <div class="flow-detail">
+          <div class="kv"><span class="kv-key">Eval method</span><span class="kv-val">run_routing_eval() → print_eval_table()</span></div>
+          <div class="kv"><span class="kv-key">Result</span><span class="kv-val">openai/gpt-4o selected for risk_classifier</span></div>
+          <div class="kv"><span class="kv-key">Injected as</span><span class="kv-val">{risk_llm_id} in risk_task prompt</span></div>
+          <div class="output-box">🔀 Evaluation-based routing: <code>openai/gpt-4o</code> → risk_classifier LLM pinned.<br>Risk task prompt will carry: <code>model_used="{risk_llm_id}"</code> — hallucination guard enforces match.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line-col">
+        <div class="flow-dot" style="background:rgba(16,185,129,0.2);color:#34d399;border:1px solid rgba(16,185,129,0.4)">3</div>
+        <div class="flow-connector"></div>
+      </div>
+      <div class="flow-body" onclick="toggleFlow(this)">
+        <div class="flow-header">
+          <div>
+            <div class="flow-title">@listen(select_risk_llm) · input_pii_scan</div>
+            <div class="flow-subtitle">Layer 1 — LLM 노출 전 입력 PII 마스킹</div>
+          </div>
+          <span class="pillar-tag policy">정책</span>
+        </div>
+        <div class="flow-detail">
+          <div class="kv"><span class="kv-key">Patterns checked</span><span class="kv-val">RRN · PHONE · BANK_ACCOUNT · CARD_NUMBER · EMAIL</span></div>
+          <div class="kv"><span class="kv-key">Trace event</span><span class="kv-val">L1_input_pii / passed</span></div>
+          <div class="output-box">✅ L1_input_pii → passed: app_002_sme.hwp (텍스트 추출 단계에서 재스캔)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line-col">
+        <div class="flow-dot" style="background:rgba(59,130,246,0.2);color:#60a5fa;border:1px solid rgba(59,130,246,0.4)">4</div>
+        <div class="flow-connector"></div>
+      </div>
+      <div class="flow-body" onclick="toggleFlow(this)">
+        <div class="flow-header">
+          <div>
+            <div class="flow-title">@listen(input_pii_scan) · run_triage_crew</div>
+            <div class="flow-subtitle">TriageCrew.kickoff() → 4 agents sequential → hallucination gate</div>
+          </div>
+          <span class="pillar-tag policy">정책</span>
+          <span class="pillar-tag verify" style="margin-left:4px">검증</span>
+        </div>
+        <div class="flow-detail">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div style="background:var(--bg3);border-radius:6px;padding:10px">
+              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">INTAKE TASK</div>
+              <div style="font-size:11px">document_parse_mcp → korean_doc_extractor</div>
+              <div style="font-size:10px;color:#34d399;margin-top:4px">✅ ApplicantProfile · conf 0.87</div>
+            </div>
+            <div style="background:var(--bg3);border-radius:6px;padding:10px">
+              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">KYC TASK</div>
+              <div style="font-size:11px">kyc_lookup + sanctions_list</div>
+              <div style="font-size:10px;color:#34d399;margin-top:4px">✅ KYCReport · sanctions_hit=false</div>
+            </div>
+            <div style="background:var(--bg3);border-radius:6px;padding:10px">
+              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">RISK TASK</div>
+              <div style="font-size:11px">credit_score_tool · openai/gpt-4o</div>
+              <div style="font-size:10px;color:#34d399;margin-top:4px">✅ RiskDecision · 0.347 approve</div>
+            </div>
+            <div style="background:var(--bg3);border-radius:6px;padding:10px">
+              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">SUPERVISOR TASK</div>
+              <div style="font-size:11px">tools=[] · gpt-4o · max_iter=2</div>
+              <div style="font-size:10px;color:#34d399;margin-top:4px">📋 MD Report · approved</div>
+            </div>
+          </div>
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px">
+            <div style="color:var(--text3);margin-bottom:4px">Hallucination scores (L3):</div>
+            <div><div style="color:var(--text3)">no scores</div></div>
+            <div style="margin-top:4px;color:var(--text3)">Threshold: 0.6 — all passed if below</div>
+          </div>
+          <div class="output-box" style="margin-top:8px">🔩 before_kickoff log_operator_identity: run_id=be5f5ceb-aad5... 운영자=demo-operator@example.bank.kr</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line-col">
+        <div class="flow-dot" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.4)">5</div>
+        <div class="flow-connector"></div>
+      </div>
+      <div class="flow-body" onclick="toggleFlow(this)">
+        <div class="flow-header">
+          <div>
+            <div class="flow-title">@router(run_triage_crew) · hitl_gate</div>
+            <div class="flow-subtitle">위험 점수 임계값 + 제재 명단 + 저신뢰도 필드 분기</div>
+          </div>
+          <span class="pillar-tag verify">검증</span>
+        </div>
+        <div class="flow-detail">
+          <div class="kv"><span class="kv-key">risk_score</span><span class="kv-val">0.347 (HITL_RISK_THRESHOLD = 0.7)</span></div>
+          <div class="kv"><span class="kv-key">sanctions_hit</span><span class="kv-val">false</span></div>
+          <div class="kv"><span class="kv-key">low_confidence_fields</span><span class="kv-val">[]</span></div>
+          <div class="kv"><span class="kv-key">Route taken</span><span class="kv-val" style="color:#fbbf24">"auto_approve"</span></div>
+          <div class="output-box">🔀 hitl_gate → "auto_approve" — final_decision=approved</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line-col">
+        <div class="flow-dot" style="background:rgba(139,92,246,0.2);color:#a78bfa;border:1px solid rgba(139,92,246,0.4)">6</div>
+        <div class="flow-connector"></div>
+      </div>
+      <div class="flow-body" onclick="toggleFlow(this)">
+        <div class="flow-header">
+          <div>
+            <div class="flow-title">@listen("auto_approve") · final decision</div>
+            <div class="flow-subtitle">route_for_human_review (HITL) 또는 apply_auto_decision</div>
+          </div>
+          <span class="pillar-tag policy">정책</span>
+        </div>
+        <div class="flow-detail">
+          <div class="kv"><span class="kv-key">final_decision</span><span class="kv-val" style="color:#34d399">approved</span></div>
+          <div class="output-box">[자동 결정 또는 검토자 결정] final_decision=approved</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-line-col">
+        <div class="flow-dot" style="background:rgba(6,182,212,0.2);color:#22d3ee;border:1px solid rgba(6,182,212,0.4)">7</div>
+      </div>
+      <div class="flow-body" onclick="toggleFlow(this)">
+        <div class="flow-header">
+          <div>
+            <div class="flow-title">@listen(or_(...)) · emit_final</div>
+            <div class="flow-subtitle">TriageResult 직렬화 + HTML 리포트 생성</div>
+          </div>
+          <span class="pillar-tag log">로깅</span>
+        </div>
+        <div class="flow-detail">
+          <div class="kv"><span class="kv-key">JSON output</span><span class="kv-val">triage_be5f5ceb-aad5-47d4-8d08-ae9783365780.json</span></div>
+          <div class="kv"><span class="kv-key">HTML report</span><span class="kv-val">report_be5f5ceb-aad5-47d4-8d08-ae9783365780.html (this page)</span></div>
+          <div class="kv"><span class="kv-key">Risk LLM</span><span class="kv-val">openai/gpt-4o (routing match confirmed)</span></div>
+          <div class="output-box">✅ [완료] 위험 점수: 0.347 · LLM: openai/gpt-4o · 최종 결정: approved</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════ AGENTS ══════════ -->
+<div id="panel-agents" class="panel">
+  <div class="section-title">🤖 에이전트 출력 / Agent Outputs</div>
+  <div class="agents-grid">
+
+    <div class="agent-card">
+      <div class="agent-head" style="background:rgba(59,130,246,0.05)">
+        <div class="agent-avatar" style="background:rgba(59,130,246,0.15);color:#60a5fa">📄</div>
+        <div>
+          <div class="agent-name">인테이크 에이전트 / Intake Agent</div>
+          <div class="agent-role">문서 인테이크 분석가 / Document Intake Analyst · gpt-4o</div>
+        </div>
+        <span class="badge badge-green" style="margin-left:auto">✓ PASSED</span>
+      </div>
+      <div class="agent-body">
+        <div class="kv"><span class="kv-key">Tools</span><span class="kv-val"><span class="tool-chip">document_parse_mcp</span><span class="tool-chip">korean_doc_extractor</span></span></div>
+        <div class="kv"><span class="kv-key">Output Schema</span><span class="kv-val">ApplicantProfile (Pydantic)</span></div>
+        <div class="kv"><span class="kv-key">Hallucination</span><span class="kv-val" style="color:#34d399">0.00 ✅</span></div>
+        <div class="kv"><span class="kv-key">Tool Order</span><span class="kv-val">Step 1: parse → Step 2: extract (enforced)</span></div>
+        <div class="output-box">
+          <div style="color:var(--accent2);margin-bottom:6px;font-size:10px">ApplicantProfile Output</div>
+          <div><code>legal_name</code>: 동백제조 · conf 1.0</div><div><code>entity_type</code>: 중소기업 · conf 1.0</div><div><code>requested_amount_krw</code>: 100,000,000 · conf 1.0</div><div><code>purpose</code>: 운영자금 및 원자재 매입 · conf 0.9</div><div><code>submitted_documents</code>: 사업자등록증, 재무제표 2개년, 부가세 신고서 · conf 1.0</div><div><code>declared_credit_grade</code>: BB · conf 1.0</div><div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)"><strong>extraction_confidence: 0.87</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="agent-card">
+      <div class="agent-head" style="background:rgba(16,185,129,0.05)">
+        <div class="agent-avatar" style="background:rgba(16,185,129,0.15);color:#34d399">🔍</div>
+        <div>
+          <div class="agent-name">KYC 검증자 / KYC Verifier</div>
+          <div class="agent-role">KYC 검증 분석가 / KYC Verification Analyst · claude-sonnet-4-5</div>
+        </div>
+        <span class="badge badge-yellow" style="margin-left:auto">⚠ FLAG</span>
+      </div>
+      <div class="agent-body">
+        <div class="kv"><span class="kv-key">Tools</span><span class="kv-val"><span class="tool-chip" style="color:#34d399;border-color:rgba(16,185,129,0.3)">kyc_lookup</span><span class="tool-chip" style="color:#34d399;border-color:rgba(16,185,129,0.3)">sanctions_list</span></span></div>
+        <div class="kv"><span class="kv-key">Lists checked</span><span class="kv-val">OFAC · UN · KoFIU</span></div>
+        <div class="kv"><span class="kv-key">Hallucination</span><span class="kv-val" style="color:#34d399">0.00 ✅</span></div>
+        <div class="output-box">
+          <div style="color:var(--accent2);margin-bottom:6px;font-size:10px">KYCReport Output</div>
+          <div><code>identity_verified</code>: <span style="color:#34d399">true</span></div><div><code>sanctions_hit</code>: <span style="color:#34d399">false</span></div><div><code>sanctions_list_matches</code>: []</div><div><code>pep_status</code>: <span style="color:#34d399">false</span></div><div><code>risk_flags</code>: <span style="color:#fbbf24">["주소이력_3회_변경"]</span></div><div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)"><strong>verification_confidence: 0.88</strong></div><div style="margin-top:4px;font-size:10px;color:#fbbf24">⚠️ 주소이력_3회_변경 — risk_flag 기록. 슈퍼바이저에 전달.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="agent-card">
+      <div class="agent-head" style="background:rgba(245,158,11,0.05)">
+        <div class="agent-avatar" style="background:rgba(245,158,11,0.15);color:#fbbf24">📊</div>
+        <div>
+          <div class="agent-name">위험 분류기 / Risk Classifier</div>
+          <div class="agent-role">신용 위험 분석가 / Credit Risk Analyst · openai/gpt-4o (eval-routed)</div>
+        </div>
+        <span class="badge badge-green" style="margin-left:auto">⚠ APPROVE</span>
+      </div>
+      <div class="agent-body">
+        <div class="kv"><span class="kv-key">Tool</span><span class="kv-val"><span class="tool-chip" style="color:#fbbf24;border-color:rgba(245,158,11,0.3)">credit_score_tool</span></span></div>
+        <div class="kv"><span class="kv-key">LLM</span><span class="kv-val">openai/gpt-4o (eval-routed · verified)</span></div>
+        <div class="kv"><span class="kv-key">Hallucination</span><span class="kv-val" style="color:#34d399">0.00 ✅</span></div>
+        <div class="output-box">
+          <div style="color:var(--accent2);margin-bottom:6px;font-size:10px">RiskDecision Output</div>
+          <div><code>risk_score</code>: <span style="color:#34d399">0.347</span></div><div><code>decision</code>: <span style="color:#34d399">approve</span></div><div><code>credit_score</code>: 690</div><div><code>requires_hitl</code>: false</div><div><code>model_used</code>: openai/gpt-4o ✅ (matches routing)</div><div style="margin-top:6px;font-size:10px;color:var(--text2)">신용 점수 690으로 위험 점수가 0.55로 산출되었으며, DTI 0.42로 0.30의 위험 점수가 부여되었습니다. KYC에서 위험 플래그가 1개 발견되어 0.40의 점수가 추가되었습니다. 자금 용도가 운영자금에 해당하여 0.10의 낮은 점수가 적용되었습니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="agent-card">
+      <div class="agent-head" style="background:rgba(139,92,246,0.05)">
+        <div class="agent-avatar" style="background:rgba(139,92,246,0.15);color:#a78bfa">⚖️</div>
+        <div>
+          <div class="agent-name">슈퍼바이저 / Loan Triage Supervisor</div>
+          <div class="agent-role">대출 분류 슈퍼바이저 / Loan Triage Supervisor · gpt-4o (pinned)</div>
+        </div>
+        <span class="badge badge-yellow" style="margin-left:auto">📋 REPORT</span>
+      </div>
+      <div class="agent-body">
+        <div class="kv"><span class="kv-key">Tools</span><span class="kv-val">[] — 부하 분석가 결과만 참조</span></div>
+        <div class="kv"><span class="kv-key">Context</span><span class="kv-val">intake + kyc + risk 모든 결과</span></div>
+        <div class="kv"><span class="kv-key">max_iter</span><span class="kv-val">2 · max_execution_time: 20s</span></div>
+        <div class="output-box">
+          <div style="color:var(--accent2);margin-bottom:6px;font-size:10px">Final Verdict</div>
+          <div><code>final_decision</code>: <span style="color:#34d399">approved</span></div><div style="margin-top:4px;font-size:10px;color:var(--text2)">신용 위험 점수 0.347. KYC 플래그 1개 · 제재 일치 없음. </div><div style="margin-top:6px"><a onclick="showTab('report')" style="font-size:10px;color:#60a5fa;cursor:pointer">→ 전체 결재 보고서 보기 (Report 탭)</a></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════ GUARDRAILS ══════════ -->
+<div id="panel-guardrails" class="panel">
+  <div class="section-title">🛡️ 4중 가드레일 시스템 / 4-Layer Guardrail System</div>
+  <div class="guardrail-grid">
+
+    <div class="guardrail-card">
+      <div class="guardrail-head" style="background:rgba(59,130,246,0.05)">
+        <div class="layer-badge" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)">L1</div>
+        <div>
+          <div style="font-size:13px;font-weight:600">입력 PII 방어 / Input PII Guard</div>
+          <div style="font-size:10px;color:var(--text3)">scan_and_mask_input() · LLM 노출 전 / Before LLM exposure</div>
+        </div>
+        <span class="badge badge-green" style="margin-left:auto">PASSED</span>
+      </div>
+      <div class="guardrail-body">
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">주민등록번호(RRN) — 미검출</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">휴대전화 번호 — 미검출</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">은행 계좌번호 — 미검출</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">카드 번호 — 미검출</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">이메일 주소 — 미검출</div></div>
+        <div class="output-box" style="margin-top:10px">
+          L1_input_pii → <span style="color:#34d399">passed</span><br>app_002_sme.hwp: PII 0건
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3)">SDS 매핑: <span class="sds-tag">AI Guardrail · Security Pillar</span></div>
+      </div>
+    </div>
+
+    <div class="guardrail-card">
+      <div class="guardrail-head" style="background:rgba(245,158,11,0.05)">
+        <div class="layer-badge" style="background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,0.3)">L2</div>
+        <div>
+          <div style="font-size:13px;font-weight:600">도구 접근 제어 / Tool RBAC</div>
+          <div style="font-size:10px;color:var(--text3)">wrap_tools_with_rbac() · 도구 호출 시점 검증 / At call time</div>
+        </div>
+        <span class="badge badge-green" style="margin-left:auto">ALL PASSED</span>
+      </div>
+      <div class="guardrail-body">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">에이전트별 화이트리스트 강제:</div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">intake_agent → [parse, extract] ✓</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">kyc_verifier → [kyc_lookup, sanctions] ✓</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">risk_classifier → [credit_score] ✓</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">supervisor → [] (도구 없음) ✓</div></div>
+        <div class="output-box" style="margin-top:10px">
+          모든 L2_tool_rbac → <span style="color:#34d399">passed</span><br>
+          persona=loan_officer · cross-agent tool access denied by design
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3)">SDS 매핑: <span class="sds-tag">Permission Control · Data Pillar</span></div>
+      </div>
+    </div>
+
+    <div class="guardrail-card">
+      <div class="guardrail-head" style="background:rgba(16,185,129,0.05)">
+        <div class="layer-badge" style="background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3)">L3</div>
+        <div>
+          <div style="font-size:13px;font-weight:600">환각 방지 게이트 / Hallucination Gate</div>
+          <div style="font-size:10px;color:var(--text3)">score_hallucination() + hallucination_gate() · 에이전트별 / per agent</div>
+        </div>
+        <span class="badge badge-green" style="margin-left:auto">ALL PASSED</span>
+      </div>
+      <div class="guardrail-body">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">임계값: 0.6 (초과 시 blocked → 재시도)</div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px;flex:1">intake_agent</div><div style="font-size:12px;color:#34d399;font-family:monospace">0.00</div><div class="progress-bar" style="width:80px;margin-left:8px"><div class="progress-fill" style="width:0%;background:#34d399"></div></div></div><div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px;flex:1">kyc_verifier</div><div style="font-size:12px;color:#34d399;font-family:monospace">0.00</div><div class="progress-bar" style="width:80px;margin-left:8px"><div class="progress-fill" style="width:0%;background:#34d399"></div></div></div><div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px;flex:1">risk_classifier</div><div style="font-size:12px;color:#34d399;font-family:monospace">0.00</div><div class="progress-bar" style="width:80px;margin-left:8px"><div class="progress-fill" style="width:0%;background:#34d399"></div></div></div>
+        <div class="output-box" style="margin-top:10px">
+          L3_hallucination → <span style="color:#34d399">passed</span> (all agents)<br>
+          Method: tool-output overlap heuristic (prod: LLM-as-judge)
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3)">SDS 매핑: <span class="sds-tag">Guardian Agent · Maker-Checker</span></div>
+      </div>
+    </div>
+
+    <div class="guardrail-card">
+      <div class="guardrail-head" style="background:rgba(6,182,212,0.05)">
+        <div class="layer-badge" style="background:rgba(6,182,212,0.12);color:#22d3ee;border:1px solid rgba(6,182,212,0.3)">L4</div>
+        <div>
+          <div style="font-size:13px;font-weight:600">출력 정책 방어 / Output Policy Guard</div>
+          <div style="font-size:10px;color:var(--text3)">policy_guardrail() · 모든 태스크 적용 / Applied to all tasks</div>
+        </div>
+        <span class="badge badge-green" style="margin-left:auto">ALL PASSED</span>
+      </div>
+      <div class="guardrail-body">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">위반 시 CrewAI 자동 재시도:</div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">주민등록번호 평문 노출 — 미검출</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">전화번호 평문 노출 — 미검출</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">계좌번호 평문 노출 — 미검출</div></div>
+        <div class="status-row"><div class="status-dot pass"></div><div style="font-size:12px">비-KRW 통화 표기 (USD/EUR) — 미검출</div></div>
+        <div class="output-box" style="margin-top:10px">
+          L4_output_policy → <span style="color:#34d399">passed</span> (4 tasks)<br>
+          한국 금융감독원 가이드라인 + 내부 신용정책 준수
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3)">SDS 매핑: <span class="sds-tag">AI Basic Act 2026 · Insurable AI</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════ RISK ══════════ -->
+<div id="panel-risk" class="panel">
+  <div class="section-title">📈 위험 평가 상세 / Risk Assessment Detail</div>
+
+  <div class="score-ring-wrap">
+    <svg width="120" height="120" viewBox="0 0 120 120" class="ring">
+      <circle cx="60" cy="60" r="50" fill="none" stroke="#1e2d45" stroke-width="12"/>
+      <circle cx="60" cy="60" r="50" fill="none" stroke="#10b981" stroke-width="12"
+        stroke-dasharray="109 205" stroke-dashoffset="0"
+        stroke-linecap="round" transform="rotate(-90 60 60)"/>
+      <text x="60" y="55" text-anchor="middle" font-size="22" font-weight="700" fill="#10b981">0.347</text>
+      <text x="60" y="72" text-anchor="middle" font-size="10" fill="#94a3b8">APPROVE ZONE</text>
+    </svg>
+    <div style="flex:1;min-width:300px">
+      <div style="font-size:18px;font-weight:700;color:#10b981">Risk Score: 0.347</div>
+      <div style="font-size:13px;color:var(--text2);margin-top:6px">Decision: <strong style="color:#10b981">approve</strong></div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">requires_hitl: false</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px">Model: openai/gpt-4o (eval-routed · verified)</div>
+      <div style="margin-top:12px;font-size:12px;color:var(--text2);max-width:400px;line-height:1.6">
+        신용 점수 690으로 위험 점수가 0.55로 산출되었으며, DTI 0.42로 0.30의 위험 점수가 부여되었습니다. KYC에서 위험 플래그가 1개 발견되어 0.40의 점수가 추가되었습니다. 자금 용도가 운영자금에 해당하여 0.10의 낮은 점수가 적용되었습니다.
+      </div>
+    </div>
+    <div style="background:var(--bg3);padding:12px;border-radius:8px;min-width:180px">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:6px">DECISION ZONES</div>
+      <div style="font-size:11px;margin-bottom:4px"><span style="color:#34d399">●</span> &lt; 0.4 → approve ← <strong>here</strong></div>
+      <div style="font-size:11px;margin-bottom:4px"><span style="color:#fbbf24">●</span> 0.4–0.7 → review </div>
+      <div style="font-size:11px"><span style="color:#ef4444">●</span> &gt; 0.7 → reject + HITL </div>
+    </div>
+  </div>
+
+  <div class="section-title">⚖️ 가중치별 점수 산출 내역 / Score Breakdown by Weight</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+    <div class="weight-row">
+      <div class="weight-label">신용 점수 (Credit Score)</div>
+      <div class="weight-bar-wrap"><div class="progress-bar"><div class="progress-fill" style="width:55%;background:#fbbf24"></div></div></div>
+      <div class="weight-pct">40%</div>
+      <div style="font-size:11px;color:var(--text2);width:200px;text-align:right">690점 (600–699) → sub-score 0.55</div>
+    </div>
+    <div class="weight-row">
+      <div class="weight-label">DTI / 사업체 유형</div>
+      <div class="weight-bar-wrap"><div class="progress-bar"><div class="progress-fill" style="width:30%;background:#fbbf24"></div></div></div>
+      <div class="weight-pct">25%</div>
+      <div style="font-size:11px;color:var(--text2);width:200px;text-align:right">0.30–0.45 → sub-score 0.30</div>
+    </div>
+    <div class="weight-row">
+      <div class="weight-label">KYC 위험 플래그</div>
+      <div class="weight-bar-wrap"><div class="progress-bar"><div class="progress-fill" style="width:40%;background:#fbbf24"></div></div></div>
+      <div class="weight-pct">20%</div>
+      <div style="font-size:11px;color:var(--text2);width:200px;text-align:right">플래그 1개 → sub-score 0.40</div>
+    </div>
+    <div class="weight-row">
+      <div class="weight-label">자금 용도 적정성</div>
+      <div class="weight-bar-wrap"><div class="progress-bar"><div class="progress-fill" style="width:10%;background:#34d399"></div></div></div>
+      <div class="weight-pct">15%</div>
+      <div style="font-size:11px;color:var(--text2);width:200px;text-align:right">운영자금/설비 → sub-score 0.10</div>
+    </div>
+  </div>
+
+  <div class="risk-breakdown">
+    <div class="risk-factor">
+      <div class="rf-label">신용 점수 (KCB/NICE)</div>
+      <div class="rf-value" style="color:#fbbf24">690</div>
+      <div class="rf-sub">보통 · 600–699</div>
+      <div class="progress-bar" style="margin-top:8px"><div class="progress-fill" style="width:55%;background:#fbbf24"></div></div>
+    </div>
+    <div class="risk-factor">
+      <div class="rf-label">부채소득비율 (DTI) <span style="font-size:9px;color:var(--text3)">— 추정/illustrative</span></div>
+      <div class="rf-value" style="color:#fbbf24">0.30–0.45</div>
+      <div class="rf-sub">구간: 0.30–0.50</div>
+      <div class="progress-bar" style="margin-top:8px"><div class="progress-fill" style="width:30%;background:#fbbf24"></div></div>
+    </div>
+    <div class="risk-factor">
+      <div class="rf-label">KYC 위험 플래그</div>
+      <div class="rf-value" style="color:#fbbf24">1개</div>
+      <div class="rf-sub">주소이력_3회_변경</div>
+      <div class="progress-bar" style="margin-top:8px"><div class="progress-fill" style="width:40%;background:#fbbf24"></div></div>
+    </div>
+    <div class="risk-factor">
+      <div class="rf-label">제재 명단 / Sanctions</div>
+      <div class="rf-value" style="color:#34d399">CLEAR</div>
+      <div class="rf-sub">OFAC · UN · KoFIU</div>
+      <div class="progress-bar" style="margin-top:8px"><div class="progress-fill" style="width:5%;background:#34d399"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ HITL ══════════ -->
+<div id="panel-hitl" class="panel">
+  <div class="section-title">👤 사람 검토 결정 게이트 / HITL Decision Gate</div>
+
+  
+    <div class="routing-card">
+      <div class="routing-title">⚠️ Supervisor 권고: Human Review</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div style="font-size:11px;color:var(--text3)">최종 결정</div><div style="font-size:16px;font-weight:700;color:#34d399;margin-top:4px">approved</div></div>
+        <div><div style="font-size:11px;color:var(--text3)">hitl_gate 경로</div><div style="font-size:14px;color:var(--text);margin-top:4px">auto_approve</div></div>
+        <div><div style="font-size:11px;color:var(--text3)">트리거 사유</div><div style="font-size:13px;color:#fbbf24;margin-top:4px">no HITL trigger met</div></div>
+        <div><div style="font-size:11px;color:var(--text3)">HITL 임계값</div><div style="font-size:13px;color:var(--text);margin-top:4px">0.7 (requires_hitl: false)</div></div>
+      </div>
+      
+    </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+    
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:10px">HITL 라우팅 로직</div>
+      <div class="kv"><span class="kv-key">entity_type</span><span class="kv-val">중소기업 → "default" rule</span></div>
+      <div class="kv"><span class="kv-key">requested_amount</span><span class="kv-val">100,000,000 → "default" rule</span></div>
+      <div class="kv"><span class="kv-key">rule_key</span><span class="kv-val">default</span></div>
+      <div class="kv"><span class="kv-key">검토자</span><span class="kv-val">여신심사부 시니어 심사역</span></div>
+      <div class="kv"><span class="kv-key">이메일</span><span class="kv-val" style="font-size:10px">credit-review-team@example.bank.kr</span></div>
+      <div class="kv"><span class="kv-key">SLA</span><span class="kv-val" style="color:#34d399">4시간</span></div>
+    </div>
+    
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:12px;
+                  letter-spacing:0.04em;text-transform:uppercase">
+        Persona 권한 매트릭스 / Authorization Matrix
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:600;width:30%">Capability</th><th class="active-col" style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);background:rgba(245,158,11,0.10);color:var(--yellow);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:600"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:var(--yellow)">대출담당자 <span style="color:var(--yellow)">●</span></span><span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--text3)">loan_officer</span></div></th><th class="" style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:600"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:var(--text)">컴플라이언스</span><span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--text3)">compliance</span></div></th><th class="" style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:600"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:var(--text)">감사관</span><span style="font-family:ui-monospace,monospace;font-size:10px;color:var(--text3)">auditor</span></div></th></tr></thead>
+        <tbody><tr><th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px;white-space:nowrap">can_run_flow</th><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;background:rgba(245,158,11,0.06);border-left:2px solid var(--yellow);"><span style="color:var(--green);font-weight:600">true</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="color:var(--green);font-weight:600">true</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="color:var(--red);font-weight:600">false</span></td></tr><tr><th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px;white-space:nowrap">can_approve_hitl</th><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;background:rgba(245,158,11,0.06);border-left:2px solid var(--yellow);"><span style="color:var(--red);font-weight:600">false</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="color:var(--green);font-weight:600">true</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="color:var(--red);font-weight:600">false</span></td></tr><tr><th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px;white-space:nowrap">can_override_decision</th><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;background:rgba(245,158,11,0.06);border-left:2px solid var(--yellow);"><span style="color:var(--red);font-weight:600">false</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="color:var(--green);font-weight:600">true</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="color:var(--red);font-weight:600">false</span></td></tr><tr><th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px;white-space:nowrap">read_only</th><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;background:rgba(245,158,11,0.06);border-left:2px solid var(--yellow);"><span style="color:var(--red);font-weight:600">false</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="color:var(--red);font-weight:600">false</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="color:var(--green);font-weight:600">true</span></td></tr><tr><th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px;white-space:nowrap">max_approval_amount</th><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;background:rgba(245,158,11,0.06);border-left:2px solid var(--yellow);"><span style="font-family:ui-monospace,monospace">≤ ₩500,000,000</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="font-family:ui-monospace,monospace">∞ (unlimited)</span></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="font-family:ui-monospace,monospace">₩0</span></td></tr><tr><th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:500;color:var(--text2);font-family:ui-monospace,monospace;font-size:11px;white-space:nowrap">tool whitelist</th><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;background:rgba(245,158,11,0.06);border-left:2px solid var(--yellow);"><div style="line-height:1.9"><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">document_parse_mcp_tool</span><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">korean_doc_extractor</span><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">kyc_lookup_tool</span><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">sanctions_list_tool</span><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">credit_score_tool</span></div></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><div style="line-height:1.9"><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">document_parse_mcp_tool</span><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">korean_doc_extractor</span><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">kyc_lookup_tool</span><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">sanctions_list_tool</span><span style="display:inline-block;padding:2px 6px;margin:1px 2px 1px 0;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:3px;font-family:ui-monospace,monospace;font-size:10px;color:var(--green)">credit_score_tool</span></div></td><td style="padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;"><span style="color:var(--red);font-weight:600">✕ blocked (0 tools)</span></td></tr></tbody>
+      </table>
+      <div style="display:flex;gap:16px;font-size:11px;color:var(--text3);
+                  margin-top:12px;padding-top:12px;border-top:1px solid var(--border);
+                  flex-wrap:wrap">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;
+                            background:var(--green);vertical-align:middle;margin-right:4px"></span>allowed</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;
+                            background:var(--red);vertical-align:middle;margin-right:4px"></span>denied</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;
+                            background:var(--yellow);vertical-align:middle;margin-right:4px"></span>active persona (this run)</span>
+        <span style="margin-left:auto;font-family:ui-monospace,monospace">
+          enforced at: guardrails/tool_rbac.py · auth.check_tool_access
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">📋 HITL 라우팅 시나리오 / Routing Scenarios</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+    <div style="background:var(--card);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:14px">
+      <div style="font-size:11px;font-weight:700;color:#34d399;margin-bottom:8px">✅ Sample 1 — Low Risk</div>
+      <div style="font-size:11px;color:var(--text2)">한라테크 · 법인 · 50억<br>신용 800+ · KYC clean</div>
+      <div style="margin-top:8px;font-size:12px;color:#34d399">→ auto_approve → approved</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">HITL not triggered</div>
+    </div>
+    <div style="background:var(--card);border:1px solid rgba(245,158,11,0.4);border-radius:8px;padding:14px">
+      <div style="font-size:11px;font-weight:700;color:#fbbf24;margin-bottom:8px">⚠️ Sample 2 — Mid Risk</div>
+      <div style="font-size:11px;color:var(--text2)">동백제조 · 중소기업 · 1억<br>690점 · 주소이력 플래그</div>
+      <div style="margin-top:8px;font-size:12px;color:#fbbf24">→ auto_approve → pending_review</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">Supervisor override · SLA 4h</div>
+    </div>
+    <div style="background:var(--card);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:14px">
+      <div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:8px">🚨 Sample 3 — High Risk</div>
+      <div style="font-size:11px;color:var(--text2)">개인 · 5천만 · 540점<br>score &gt; 0.7</div>
+      <div style="margin-top:8px;font-size:12px;color:#ef4444">→ needs_hitl → 소매여신 위험관리역</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">SLA 2h · retail-risk queue</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ REPORT ══════════ -->
+<div id="panel-report" class="panel">
+  <div class="section-title">📋 슈퍼바이저 최종 결재 보고서 / Supervisor Final Report</div>
+  <div class="report-box"><h1>결재 보고서</h1>
+<h2>1. 신청 개요</h2>
+<ul>
+<li>신청자 ID: APP-2026-0002</li>
+<li>법인명: 동백제조</li>
+<li>기업 유형: 중소기업</li>
+<li>요청 금액: 1억원</li>
+<li>자금 용도: 운영자금 및 원자재 매입</li>
+<li>제출 서류: 사업자등록증, 재무제표 2개년, 부가세 신고서</li>
+<li>신고된 신용등급: BB</li>
+</ul>
+<h2>2. KYC 검증 요약</h2>
+<ul>
+<li>신원 확인 완료 여부: 확인 완료</li>
+<li>제재 명단과의 일치: 없음</li>
+<li>PEP 상태: 부재</li>
+<li>위험 플래그: 주소 이력 3회 변경</li>
+<li>검증 신뢰도: 0.88</li>
+</ul>
+<h2>3. 신용 위험 평가 요약</h2>
+<ul>
+<li>산출된 위험 점수: 0.3475</li>
+<li>신용 점수: 690</li>
+<li>DTI (총부채상환비율): 0.42</li>
+<li>자금 용도 평가: 운영자금으로서 낮은 위험 점수 적용 (0.10의 점수)</li>
+<li>모델 사용: openai/gpt-4o</li>
+<li>신용 위험 평가 결정: 승인 권고</li>
+</ul>
+<h2>4. 최종 결정 및 한국어 근거</h2>
+<p>최종 결재 의견은 <strong>"승인"</strong>입니다. 신청자의 위험 점수는 0.3475로, 0.4 이하이며 KYC 검증에서 주소 변경 이력 외에 특별한 위험 플래그가 발견되지 않았습니다. 또한, 자금 용도가 '운영자금 및 원자재 매입'으로서 용도에 따른 추가 점수 적용이 낮았으며, 전반적인 신용리스크 평가에서 별다른 지적 사항이나 제재 명단과의 문제는 확인되지 않았습니다.</p>
+<h2>5. HITL 라우팅 필요 여부 및 사유</h2>
+<p>HITL 라우팅은 필요 없습니다. 위험 점수가 0.7을 초과하지 않으며 제재 명단 일치 사항도 없기 때문에 추가적인 사람 검토는 요구되지 않습니다.</p></div>
+</div>
+
+<!-- ══════════ ANALYTICS ══════════ -->
+<div id="panel-analytics" class="panel">
+  <div class="section-title">📉 분석 시각화 / Analytics & Visualizations</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">📋 필드 추출 신뢰도 / Field Extraction Confidence</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Intake Agent — ApplicantProfile 필드별 신뢰도 / Per-field confidence · 0.6 미만 → manual review</div>
+      <div style="height:200px"><canvas id="chartFieldConf"></canvas></div>
+      <div style="margin-top:10px;display:flex;gap:12px;font-size:10px">
+        <span style="color:#10b981">● ≥ 0.8 Confident</span>
+        <span style="color:#f59e0b">● 0.6–0.79 Inferred</span>
+        <span style="color:#ef4444">● &lt; 0.6 Low → manual</span>
+      </div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">🧠 환각 점수 vs 임계값 / Hallucination Scores vs Threshold</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">L3 Guard — 0.6 초과 시 blocked · 재시도 트리거</div>
+      <div style="height:200px"><canvas id="chartHalluc"></canvas></div>
+      <div style="margin-top:10px;font-size:10px;color:var(--text3)">Prod method: LLM-as-judge / citation overlap · Demo: tool-output heuristic</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:16px;margin-bottom:16px">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">⚖️ 위험 가중치 구성 / Risk Weight Composition</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">4개 가중치 합산 → final score 0.347</div>
+      <div style="height:200px"><canvas id="chartRiskDonut"></canvas></div>
+      <div style="margin-top:10px;text-align:center;font-size:11px;color:var(--text3)">
+        Σ weighted = <strong style="color:#10b981">0.347</strong> → <strong style="color:#10b981">approve</strong>
+      </div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">📊 위험 요소 분석 / Risk Factor: Sub-Score vs Weight vs Contribution</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">ILLUSTRATIVE — 데모용 가중치 예시 데이터 (실제 sub-score 는 LLM rationale 참조)</div>
+      <div style="height:200px"><canvas id="chartRiskFactors"></canvas></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">🎯 에이전트 역량 레이더 / Agent Capability Coverage</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">각 에이전트의 전문 역량 범위 / Specialist scope — 중복 없이 분리된 책임 구조 / Non-overlapping responsibilities</div>
+      <div style="height:220px"><canvas id="chartRadar"></canvas></div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">📈 4회 실행 추세 / 4-Run Trend (ILLUSTRATIVE)</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">예시 데이터 — 실제 운영 시 historical store 연결</div>
+      <div style="height:220px"><canvas id="chartRunTrend"></canvas></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">🗂️ 전체 샘플 실행 비교 / All Sample Runs — Comparison Table</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:600">#</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:600">신청자</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:600">유형</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:600">금액</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:600">신용</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:600">Risk</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:600">결정</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:600">HITL</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:7px 8px;color:var(--text3)">1 </td>
+            <td style="padding:7px 8px;">한라테크</td>
+            <td style="padding:7px 8px">법인</td>
+            <td style="padding:7px 8px">50억</td>
+            <td style="padding:7px 8px;color:#34d399">AA</td>
+            <td style="padding:7px 8px"><span style="color:#34d399;font-family:monospace">0.18</span></td>
+            <td style="padding:7px 8px"><span style="background:rgba(16,185,129,0.15);color:#34d399;padding:2px 7px;border-radius:4px;font-size:10px">approved</span></td>
+            <td style="padding:7px 8px;color:#34d399">✗</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(245,158,11,0.04);">
+            <td style="padding:7px 8px;color:var(--text3)">2 ★</td>
+            <td style="padding:7px 8px;font-weight:600;">동백제조</td>
+            <td style="padding:7px 8px">중소기업</td>
+            <td style="padding:7px 8px">1억</td>
+            <td style="padding:7px 8px;color:#fbbf24">BB</td>
+            <td style="padding:7px 8px"><span style="color:#fbbf24;font-family:monospace">0.483</span></td>
+            <td style="padding:7px 8px"><span style="background:rgba(245,158,11,0.15);color:#fbbf24;padding:2px 7px;border-radius:4px;font-size:10px">pending</span></td>
+            <td style="padding:7px 8px;color:#fbbf24">⚠ 권고</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:7px 8px;color:var(--text3)">3 </td>
+            <td style="padding:7px 8px;">개인 (홍길동)</td>
+            <td style="padding:7px 8px">개인</td>
+            <td style="padding:7px 8px">5천만</td>
+            <td style="padding:7px 8px;color:#ef4444">540pt</td>
+            <td style="padding:7px 8px"><span style="color:#ef4444;font-family:monospace">0.81</span></td>
+            <td style="padding:7px 8px"><span style="background:rgba(239,68,68,0.15);color:#ef4444;padding:2px 7px;border-radius:4px;font-size:10px">reject</span></td>
+            <td style="padding:7px 8px;color:#ef4444">✓ 필수</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:7px 8px;color:var(--text3)">4 </td>
+            <td style="padding:7px 8px;">파트너채널</td>
+            <td style="padding:7px 8px">중소기업</td>
+            <td style="padding:7px 8px">1억</td>
+            <td style="padding:7px 8px;color:#fbbf24">BB</td>
+            <td style="padding:7px 8px"><span style="color:#fbbf24;font-family:monospace">0.49</span></td>
+            <td style="padding:7px 8px"><span style="background:rgba(245,158,11,0.15);color:#fbbf24;padding:2px 7px;border-radius:4px;font-size:10px">pending</span></td>
+            <td style="padding:7px 8px;color:#fbbf24">⚠ 권고</td>
+          </tr></tbody>
+      </table>
+      <div style="margin-top:10px;font-size:10px;color:var(--text3)">★ = this run · 4개 샘플 파일 형식: PDF · HWP · PNG (OCR) · DOCX</div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">🔀 LLM 라우팅 평가 / LLM Routing Evaluation</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">risk_classifier LLM 선택 / Model selection — eval 캐시 기반 라우팅 (Pillar: 개선)</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:5px 8px;color:var(--text3)">Model</th>
+            <th style="text-align:right;padding:5px 8px;color:var(--text3)">Accuracy</th>
+            <th style="text-align:right;padding:5px 8px;color:var(--text3)">Latency</th>
+            <th style="text-align:right;padding:5px 8px;color:var(--text3)">Cost</th>
+            <th style="text-align:center;padding:5px 8px;color:var(--text3)">Pick</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border);background:rgba(59,130,246,0.05)">
+            <td style="padding:6px 8px;font-weight:600">gpt-4o</td>
+            <td style="padding:6px 8px;text-align:right;color:#34d399">94%</td>
+            <td style="padding:6px 8px;text-align:right;color:#34d399">2.1s</td>
+            <td style="padding:6px 8px;text-align:right;color:#fbbf24">$$</td>
+            <td style="padding:6px 8px;text-align:center;font-size:13px">✅</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 8px">claude-sonnet-4-5</td>
+            <td style="padding:6px 8px;text-align:right;color:#34d399">92%</td>
+            <td style="padding:6px 8px;text-align:right;color:#34d399">1.8s</td>
+            <td style="padding:6px 8px;text-align:right;color:#34d399">$</td>
+            <td style="padding:6px 8px;text-align:center;color:var(--text3)">—</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px">gpt-4o-mini</td>
+            <td style="padding:6px 8px;text-align:right;color:#fbbf24">81%</td>
+            <td style="padding:6px 8px;text-align:right;color:#34d399">0.9s</td>
+            <td style="padding:6px 8px;text-align:right;color:#34d399">$</td>
+            <td style="padding:6px 8px;text-align:center;color:var(--text3)">—</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:12px;padding:10px;background:var(--bg3);border-radius:6px;font-size:11px">
+        <div style="color:var(--text3);margin-bottom:4px">Selection rationale</div>
+        <div>gpt-4o scored highest on Korean financial risk eval benchmark. routing_decision.json cached → <code style="color:#22d3ee">risk_llm_id</code> injected into task prompt. Model hallucination guard enforces match at runtime.</div>
+      </div>
+      <div style="margin-top:10px;padding:8px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:6px;font-size:11px">
+        <strong style="color:#34d399">SDS AI FinOps:</strong> 태스크별 최적 모델 선택 → 비용 최적화 + 성능 보장
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:12px">🛡️ 가드레일 이벤트 로그 / Guardrail Event Log — Full Run</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:6px 10px;color:var(--text3);font-weight:600;width:80px">Layer</th>
+          <th style="text-align:left;padding:6px 10px;color:var(--text3);font-weight:600;width:90px">Event</th>
+          <th style="text-align:left;padding:6px 10px;color:var(--text3);font-weight:600;width:100px">Status</th>
+          <th style="text-align:left;padding:6px 10px;color:var(--text3);font-weight:600">Detail</th>
+          <th style="text-align:left;padding:6px 10px;color:var(--text3);font-weight:600;width:140px">SDS映射</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 10px"><span style="background:rgba(59,130,246,0.15);color:#60a5fa;padding:1px 6px;border-radius:3px;font-weight:700">L1</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">input_pii</td>
+          <td style="padding:6px 10px"><span style="color:#34d399">● passed</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">app_002_sme.hwp — PII 0건</td>
+          <td style="padding:6px 10px"><span class="sds-tag">Security Pillar</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 10px"><span style="background:rgba(245,158,11,0.12);color:#fbbf24;padding:1px 6px;border-radius:3px;font-weight:700">L2</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">tool_rbac</td>
+          <td style="padding:6px 10px"><span style="color:#34d399">● passed ×5</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">intake(×2) + kyc(×2) + risk(×1) — 모두 화이트리스트 내</td>
+          <td style="padding:6px 10px"><span class="sds-tag">Permission Control</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 10px"><span style="background:rgba(16,185,129,0.12);color:#34d399;padding:1px 6px;border-radius:3px;font-weight:700">L3</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">hallucination</td>
+          <td style="padding:6px 10px"><span style="color:#34d399">● passed ×3</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">intake:0.00 · kyc:0.00 · risk:0.00 — all ≤ 0.6</td>
+          <td style="padding:6px 10px"><span class="sds-tag">Guardian Agent</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 10px"><span style="background:rgba(6,182,212,0.12);color:#22d3ee;padding:1px 6px;border-radius:3px;font-weight:700">L4</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">output_policy</td>
+          <td style="padding:6px 10px"><span style="color:#34d399">● passed ×4</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">PII · 전화 · 계좌 · 비-KRW — 4 tasks, 모두 통과</td>
+          <td style="padding:6px 10px"><span class="sds-tag">AI Basic Act</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 10px"><span style="background:rgba(139,92,246,0.12);color:#a78bfa;padding:1px 6px;border-radius:3px;font-weight:700">RBAC</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">before_kickoff</td>
+          <td style="padding:6px 10px"><span style="color:#34d399">● logged</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">운영자 감사 로그 · JWT validated · persona=loan_officer</td>
+          <td style="padding:6px 10px"><span class="sds-tag">SingleID · Audit</span></td>
+        </tr>
+        
+        <tr>
+          <td style="padding:6px 10px"><span style="background:rgba(16,185,129,0.12);color:#34d399;padding:1px 6px;border-radius:3px;font-weight:700">HITL</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">hitl_gate</td>
+          <td style="padding:6px 10px"><span style="color:#34d399">● passed</span></td>
+          <td style="padding:6px 10px;color:var(--text2)">score 0.347 ≤ 0.7 · no sanctions · all fields ≥ 0.6 → auto_approve</td>
+          <td style="padding:6px 10px"><span class="sds-tag">Maker-Checker</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:10px;display:flex;justify-content:flex-end;gap:16px;font-size:11px">
+      <span style="color:#34d399">✅ 12 PASSED</span>
+      <span style="color:#fbbf24">⚠️ 0 WARNED</span>
+      <span style="color:#ef4444">🚫 0 BLOCKED</span>
+    </div>
+  </div>
+
+</div>
+</div><!-- end .content -->
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-title">5대 원칙 ↔ Samsung SDS 프레임워크</div>
+    <div class="pillar-item">
+      <div class="pillar-icon">📋</div>
+      <div>
+        <div class="pillar-name" style="color:#60a5fa">정책 / Policy</div>
+        <div class="pillar-desc">L4 가드레일 · PII · KRW 전용<br>L4 guardrail · PII · KRW-only</div>
+        <div class="sds-tag">AI 기본법 2026 / AI Basic Act</div>
+        <div class="sds-tag" style="margin-left:4px">보험 가능 AI / Insurable AI</div>
+      </div>
+    </div>
+    <div class="pillar-item">
+      <div class="pillar-icon">🔑</div>
+      <div>
+        <div class="pillar-name" style="color:#fbbf24">권한 / Auth</div>
+        <div class="pillar-desc">JWT/SSO · RBAC · 감사 로그<br>JWT/SSO · RBAC · Audit Log</div>
+        <div class="sds-tag">보안 / Security Pillar</div>
+        <div class="sds-tag" style="margin-left:4px">SingleID</div>
+      </div>
+    </div>
+    <div class="pillar-item">
+      <div class="pillar-icon">✅</div>
+      <div>
+        <div class="pillar-name" style="color:#34d399">검증 / Verify</div>
+        <div class="pillar-desc">HITL 게이트 · 환각 · 제재명단<br>HITL gate · Hallucination · Sanctions</div>
+        <div class="sds-tag">결재선 / Maker-Checker</div>
+        <div class="sds-tag" style="margin-left:4px">Guardian Agent</div>
+      </div>
+    </div>
+    <div class="pillar-item">
+      <div class="pillar-icon">📝</div>
+      <div>
+        <div class="pillar-name" style="color:#22d3ee">로깅 / Log</div>
+        <div class="pillar-desc">OTel 스팬 · JSON 감사 추적<br>OTel spans · JSON audit trail</div>
+        <div class="sds-tag">연결 / Connection Pillar</div>
+        <div class="sds-tag" style="margin-left:4px">AI Harness</div>
+      </div>
+    </div>
+    <div class="pillar-item">
+      <div class="pillar-icon">🚀</div>
+      <div>
+        <div class="pillar-name" style="color:#a78bfa">개선 / Improve</div>
+        <div class="pillar-desc">평가 기반 LLM 라우팅<br>Eval-based LLM routing</div>
+        <div class="sds-tag">AI FinOps</div>
+        <div class="sds-tag" style="margin-left:4px">전문 에이전트 / Narrow Agent</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-title">실행 메타데이터 / Run Metadata</div>
+    <div class="meta-item"><span class="meta-key">신청자 / Applicant</span><span class="meta-val">동백제조</span></div>
+    <div class="meta-item"><span class="meta-key">ID</span><span class="meta-val">APP-2026-0002</span></div>
+    <div class="meta-item"><span class="meta-key">신청액 / Amount</span><span class="meta-val">₩100,000,000</span></div>
+    <div class="meta-item"><span class="meta-key">위험 점수 / Risk Score</span><span class="meta-val" style="color:#10b981">0.347</span></div>
+    <div class="meta-item"><span class="meta-key">결정 / Decision</span><span class="meta-val" style="color:#34d399">approved</span></div>
+    <div class="meta-item"><span class="meta-key">위험 LLM / Risk LLM</span><span class="meta-val">openai/gpt-4o</span></div>
+    <div class="meta-item"><span class="meta-key">KYC LLM</span><span class="meta-val">claude-sonnet-4-5</span></div>
+    <div class="meta-item"><span class="meta-key">슈퍼바이저 / Supervisor</span><span class="meta-val">gpt-4o</span></div>
+    <div class="meta-item"><span class="meta-key">가드레일 / Guardrails</span><span class="meta-val" style="color:#34d399">전체 통과 / All PASSED</span></div>
+    <div class="meta-item"><span class="meta-key">HITL 대기열 / Queue</span><span class="meta-val">— (auto-decided)</span></div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-title">Samsung SDS — Key Echoes / 핵심 공명점</div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.6;padding:10px;background:var(--bg3);border-radius:6px;border:1px solid var(--border)">
+      <div style="margin-bottom:8px;font-style:italic">"Generative AI <strong style="color:#60a5fa">creates</strong>. Agentic AI <strong style="color:#60a5fa">acts</strong>."<br><span style="color:var(--text3)">생성형 AI는 만든다. 에이전틱 AI는 행동한다.</span></div>
+      <div style="margin-bottom:8px">✓ Data · Connection · Security · People<br><span style="color:var(--text3)">데이터 · 연결 · 보안 · 사람</span></div>
+      <div style="margin-bottom:8px">✓ Maker-checker preserved<br><span style="color:var(--text3)">결재선 보존</span></div>
+      <div style="margin-bottom:8px">✓ Insurable AI = traceability + HITL<br><span style="color:var(--text3)">보험 가능한 AI = 추적성 + 사람 검토</span></div>
+      <div>✓ Narrow agents · KPI-driven<br><span style="color:var(--text3)">전문화된 에이전트 · KPI 중심</span></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .main -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const TABS = ['overview','flow','agents','guardrails','risk','hitl','report','analytics'];
+let chartsInitialized = false;
+
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  const idx = TABS.indexOf(id);
+  document.querySelectorAll('.tab')[idx].classList.add('active');
+  if (id === 'analytics' && !chartsInitialized) {
+    setTimeout(initCharts, 80);
+    chartsInitialized = true;
+  }
+}
+
+function toggleFlow(el) { el.classList.toggle('expanded'); }
+
+function chartDefaults() {
+  Chart.defaults.color = '#94a3b8';
+  Chart.defaults.borderColor = '#1e2d45';
+  Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+  Chart.defaults.font.size = 12;
+}
+
+function initCharts() {
+  if (typeof Chart === 'undefined') return;
+  chartDefaults();
+
+  // 1. Field Confidence — horizontal bar (dynamic)
+  const fc = {"legal_name": 1.0, "entity_type": 1.0, "requested_amount_krw": 1.0, "purpose": 0.9, "submitted_documents": 1.0, "declared_credit_grade": 1.0};
+  const fcLabels = Object.keys(fc);
+  const fcData = fcLabels.map(k => fc[k]);
+  const fcColors = fcData.map(v => v >= 0.8 ? 'rgba(16,185,129,0.7)' : v >= 0.6 ? 'rgba(245,158,11,0.7)' : 'rgba(239,68,68,0.7)');
+  const fcBorders = fcData.map(v => v >= 0.8 ? '#10b981' : v >= 0.6 ? '#f59e0b' : '#ef4444');
+
+  new Chart(document.getElementById('chartFieldConf'), {
+    type: 'bar',
+    data: { labels: fcLabels, datasets: [{ label: 'Confidence', data: fcData, backgroundColor: fcColors, borderColor: fcBorders, borderWidth: 1, borderRadius: 4 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { min: 0, max: 1, grid: { color: '#1e2d45' }, ticks: { callback: v => (v*100).toFixed(0) + '%' } }, y: { grid: { display: false } } }
+    }
+  });
+
+  // 2. Hallucination scores — vertical bar (dynamic)
+  const hl = {};
+  const hlLabels = Object.keys(hl);
+  const hlData = hlLabels.map(k => hl[k]);
+
+  if (hlLabels.length === 0) {
+    const canvas = document.getElementById('chartHalluc');
+    const parent = canvas.parentElement;
+    parent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:12px;text-align:center;line-height:1.6">' +
+      '환각 점수 데이터 없음 / No hallucination scores recorded<br>' +
+      '<span style="font-size:10px">이전 실행 (Flow state 버그 수정 전) 또는 측정 실패. 재실행 시 자동 수집.</span></div>';
+  } else
+  new Chart(document.getElementById('chartHalluc'), {
+    type: 'bar',
+    data: {
+      labels: hlLabels,
+      datasets: [
+        { label: 'Hallucination Score', data: hlData, backgroundColor: 'rgba(16,185,129,0.65)', borderColor: '#10b981', borderWidth: 1, borderRadius: 6 },
+        { label: 'Threshold (0.6)', data: hlLabels.map(() => 0.6), type: 'line', borderColor: '#ef4444', borderWidth: 2, borderDash: [6,3], pointRadius: 0, fill: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 14 } } },
+      scales: { y: { min: 0, max: 0.8, grid: { color: '#1e2d45' } }, x: { grid: { display: false } } }
+    }
+  });
+
+  // 3. Risk factor donut (static weight composition)
+  new Chart(document.getElementById('chartRiskDonut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['신용 점수 (40%)', 'DTI/업종 (25%)', 'KYC 플래그 (20%)', '자금 용도 (15%)'],
+      datasets: [{
+        data: [40, 25, 20, 15],
+        backgroundColor: ['rgba(245,158,11,0.75)','rgba(59,130,246,0.75)','rgba(239,68,68,0.65)','rgba(16,185,129,0.65)'],
+        borderColor: ['#f59e0b','#3b82f6','#ef4444','#10b981'],
+        borderWidth: 1.5, hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '62%',
+      plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } } }
+    }
+  });
+
+  // 4. Risk sub-scores vs weight (ILLUSTRATIVE)
+  new Chart(document.getElementById('chartRiskFactors'), {
+    type: 'bar',
+    data: {
+      labels: ['신용 점수','DTI','KYC 플래그','자금 용도'],
+      datasets: [
+        { label: 'Sub-Score (0–1)', data: [0.55, 0.30, 0.40, 0.10], backgroundColor: 'rgba(245,158,11,0.65)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 4 },
+        { label: 'Weight', data: [0.40, 0.25, 0.20, 0.15], backgroundColor: 'rgba(59,130,246,0.45)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 4 },
+        { label: 'Weighted Contribution', data: [0.22, 0.075, 0.08, 0.015], backgroundColor: 'rgba(139,92,246,0.65)', borderColor: '#8b5cf6', borderWidth: 1, borderRadius: 4, type: 'line', pointRadius: 5, fill: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 12 } } },
+      scales: { y: { min: 0, max: 0.65, grid: { color: '#1e2d45' } }, x: { grid: { display: false } } }
+    }
+  });
+
+  // 5. Radar — agent capability coverage (static)
+  new Chart(document.getElementById('chartRadar'), {
+    type: 'radar',
+    data: {
+      labels: ['Document Parse','NER Extract','Identity Check','Sanctions Screen','Credit Score','Policy Synthesis'],
+      datasets: [
+        { label: 'Intake Agent', data: [95, 87, 0, 0, 0, 0], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)', borderWidth: 2, pointRadius: 4 },
+        { label: 'KYC Verifier', data: [0, 0, 88, 90, 0, 0], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 2, pointRadius: 4 },
+        { label: 'Risk Classifier', data: [0, 0, 0, 0, 85, 0], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 2, pointRadius: 4 },
+        { label: 'Supervisor', data: [0, 0, 0, 0, 0, 92], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.12)', borderWidth: 2, pointRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 10 } } },
+      scales: { r: { min: 0, max: 100, grid: { color: '#1e2d45' }, angleLines: { color: '#1e2d45' }, pointLabels: { color: '#94a3b8', font: { size: 11 } }, ticks: { display: false } } }
+    }
+  });
+
+  // 6. 4-run trend (ILLUSTRATIVE)
+  new Chart(document.getElementById('chartRunTrend'), {
+    type: 'line',
+    data: {
+      labels: ['Run 1','Run 2','Run 3','Run 4 (this)'],
+      datasets: [
+        { label: 'Extraction Confidence', data: [0.82, 0.85, 0.85, 0.87], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.35, pointRadius: 5 },
+        { label: 'Verification Confidence', data: [0.84, 0.86, 0.87, 0.88], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.06)', fill: true, tension: 0.35, pointRadius: 5 },
+        { label: 'Risk Score', data: [0.51, 0.49, 0.485, 0.483], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.06)', fill: false, tension: 0.35, pointRadius: 5, borderDash: [4,2] }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 12 } } },
+      scales: { y: { min: 0.4, max: 1.0, grid: { color: '#1e2d45' } }, x: { grid: { color: '#1e2d45' } } }
+    }
+  });
+}
+</script>
+</body>
+</html>
